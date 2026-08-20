@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>wondR — Demo 0.1</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="brand">wond<span class="brand-r">R</span></div>
+        <div class="motto">I WONDER HOW THIS WORKS.</div>
+      </div>
+      <button id="newTopicBtn" class="primary">+ Yeni konu</button>
+    </header>
+
+    <nav class="tabs" aria-label="Ana gezinme">
+      <button class="tab active" data-view="home">Bugün</button>
+      <button class="tab" data-view="topics">Konular</button>
+      <button class="tab" data-view="queue">Öğren</button>
+      <button class="tab" data-view="map">Harita</button>
+    </nav>
+
+    <main id="app"></main>
+  </div>
+
+  <dialog id="topicDialog">
+    <form method="dialog" id="topicForm" class="dialog-card">
+      <h2>Yeni öğrenme konusu</h2>
+      <label>Konu adı
+        <input id="topicTitle" required placeholder="Örn. Linux Kernel" />
+      </label>
+      <label>İlk not
+        <textarea id="topicNote" rows="5" placeholder="Bugün ne öğrendin?"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Vazgeç</button>
+        <button value="default" id="saveTopicBtn" class="primary">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="learnDialog">
+    <form method="dialog" id="learnForm" class="dialog-card">
+      <h2>“Öğren” listesine ekle</h2>
+      <label>Kavram
+        <input id="learnTitle" required placeholder="Örn. Instruction Set Architecture" />
+      </label>
+      <label>Bu kavram nerede karşıma çıktı?
+        <select id="learnParent"></select>
+      </label>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Vazgeç</button>
+        <button value="default" id="saveLearnBtn" class="primary">Ekle</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
