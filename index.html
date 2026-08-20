@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>wondR — Demo 0.1</title>
+  <title>wondR — Demo</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -28,13 +28,27 @@
 
   <dialog id="topicDialog">
     <form method="dialog" id="topicForm" class="dialog-card">
-      <h2>Yeni öğrenme konusu</h2>
+      <h2 id="topicDialogTitle">Yeni öğrenme konusu</h2>
+      <input id="editingTopicId" type="hidden" />
       <label>Konu adı
         <input id="topicTitle" required placeholder="Örn. Linux Kernel" />
       </label>
-      <label>İlk not
-        <textarea id="topicNote" rows="5" placeholder="Bugün ne öğrendin?"></textarea>
+      <label>Notlar
+        <textarea id="topicNote" rows="8" placeholder="Araştırırken öğrendiklerini buraya yaz..."></textarea>
       </label>
+      <div class="relation-grid">
+        <label>Bağlantılı konu
+          <select id="relatedTopic"></select>
+        </label>
+        <label>İlişki türü
+          <select id="relationType">
+            <option value="none">Bağlantı yok</option>
+            <option value="child">Alt öğrenme</option>
+            <option value="parent">Üst öğrenme</option>
+            <option value="related">İlişkili</option>
+          </select>
+        </label>
+      </div>
       <div class="dialog-actions">
         <button value="cancel" class="ghost">Vazgeç</button>
         <button value="default" id="saveTopicBtn" class="primary">Kaydet</button>
