@@ -1,37 +1,86 @@
-# wondR — Demo 0.1
+# wondR
 
-**Motto:** I WONDER HOW THIS WORKS.  
-**Anlamı:** Bunun nasıl çalıştığını merak ediyorum.
+Kişisel öğrenme hafızası uygulaması. Yerel geliştirme için `npm install` ve `npm run dev` yeterlidir.
 
-Bu ilk demo tamamen maliyetsiz çalışır. Backend, AI API veya üyelik gerektirmez.
+## Supabase kurulumu
 
-## Demo ne yapıyor?
+1. Supabase Dashboard > SQL Editor içinde [supabase/schema.sql](supabase/schema.sql) dosyasını çalıştırın.
+2. `.env.example` dosyasını `.env` olarak kopyalayın.
+3. `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` değerlerini Supabase Project Settings > API bölümünden doldurun.
+4. Authentication > Providers altında Email sağlayıcısını etkinleştirin.
 
-- Yeni öğrenme konusu açar.
-- Kendi notlarını kaydeder.
-- Bir konu içinden başka bir kavramı **Öğren** listesine atar.
-- O kavramın hangi konudan doğduğunu saklar.
-- Öğren listesinde “Başla” diyerek onu yeni konuya dönüştürür.
-- Basit bir bilgi haritası gösterir.
-- Verileri tarayıcının `localStorage` alanında saklar.
+`.env` git'e dahil edilmez. Frontend'de yalnızca anon key kullanılmalı; `service_role` key kesinlikle eklenmemelidir.
 
-## Çalıştırma
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-`index.html` dosyasını çift tıklayıp tarayıcıda açman yeterli.
+Currently, two official plugins are available:
 
-## Bu sürümün amacı
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-Ürünün ana davranışını test etmek:
+## React Compiler
 
-**NOT AL → BAĞLA → ÖĞREN DİYE İŞARETLE → SONRA DEVAM ET → HARİTADA GÖR**
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Sonraki adım
+## Expanding the ESLint configuration
 
-Demo mantığı doğru bulunursa:
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-1. Arayüzü iyileştir.
-2. Supabase ücretsiz veritabanına geçir.
-3. Vercel'e yayınla.
-4. Hatırlatma / öğrenme planı ekle.
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-AI yok. Araştırmayı kullanıcı yapar.
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+
+```
