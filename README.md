@@ -4,7 +4,7 @@ Kişisel öğrenme hafızası uygulaması. Yerel geliştirme için `npm install`
 
 ## Supabase kurulumu
 
-1. Supabase Dashboard > SQL Editor içinde [supabase/schema.sql](supabase/schema.sql) dosyasını çalıştırın.
+1. Supabase Dashboard > SQL Editor içinde [supabase/schema.sql](supabase/schema.sql) dosyasını çalıştırın. Bu migration `notes`, `highlights`, archive alanı ve RLS policy'lerini içerir.
 2. `.env.example` dosyasını `.env` olarak kopyalayın.
 3. `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` değerlerini Supabase Project Settings > API bölümünden doldurun.
 4. Authentication > Providers altında Email sağlayıcısını etkinleştirin.

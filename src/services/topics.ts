@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Topic } from '../types'
 import { supabase } from '../lib/supabase'
 
-type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; created_at: string; updated_at: string; last_studied_at: string | null }
+type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; created_at: string; updated_at: string; last_studied_at: string | null; archived_at: string | null }
 type RelationRow = { user_id: string; source_topic_id: string; target_topic_id: string; relation_type: 'parent' | 'child' | 'related' }
 type OrderRow = { user_id: string; topic_id: string; position: number }
 
@@ -22,6 +22,7 @@ function buildTopics(rows: TopicRow[], relations: RelationRow[], order: OrderRow
     relatedTopicIds: [],
     lastStudied: row.last_studied_at ? new Date(row.last_studied_at).toLocaleDateString('tr-TR') : 'Henüz çalışılmadı',
     lastStudiedAt: row.last_studied_at ?? undefined,
+    archivedAt: row.archived_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })) as Topic[]
@@ -81,6 +82,7 @@ export async function saveCloudTopic(userId: string, topic: Topic) {
     created_at: topic.createdAt,
     updated_at: topic.updatedAt,
     last_studied_at: topic.lastStudiedAt ?? null,
+    archived_at: topic.archivedAt ?? null,
   }
   const saved = await client.from('topics').upsert(topicRow, { onConflict: 'user_id,id' })
   if (saved.error) throw saved.error
@@ -100,11 +102,16 @@ export async function saveCloudOrder(userId: string, order: string[]) {
   if (result.error) throw result.error
 }
 
-export type LocalSnapshot = { topics: Topic[]; topicOrder: string[]; studyItems: unknown[]; studyHistory: unknown[]; highlights: unknown[] }
+export async function deleteCloudTopic(userId: string, topicId: string) {
+  const result = await clientOrThrow().from('topics').delete().eq('user_id', userId).eq('id', topicId)
+  if (result.error) throw result.error
+}
+
+export type LocalSnapshot = { topics: Topic[]; topicOrder: string[]; studyItems: unknown[]; studyHistory: unknown[]; highlights: unknown[]; notes: unknown[] }
 
 export async function migrateTopics(userId: string, snapshot: LocalSnapshot, studyMigration: (client: SupabaseClient, userId: string, snapshot: LocalSnapshot) => Promise<void>) {
   const client = clientOrThrow()
-  const topicRows = snapshot.topics.map((topic) => ({ user_id: userId, id: topic.id, title: topic.title, notes: topic.notes, note_count: topic.noteCount, created_at: topic.createdAt, updated_at: topic.updatedAt, last_studied_at: topic.lastStudiedAt ?? null }))
+  const topicRows = snapshot.topics.map((topic) => ({ user_id: userId, id: topic.id, title: topic.title, notes: topic.notes, note_count: topic.noteCount, created_at: topic.createdAt, updated_at: topic.updatedAt, last_studied_at: topic.lastStudiedAt ?? null, archived_at: topic.archivedAt ?? null }))
   if (topicRows.length) {
     const topicsResult = await client.from('topics').upsert(topicRows, { onConflict: 'user_id,id' })
     if (topicsResult.error) throw topicsResult.error

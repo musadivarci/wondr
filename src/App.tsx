@@ -6,10 +6,12 @@ import { StudyList } from './components/StudyList'
 import { LearningPath } from './components/LearningPath'
 import { KnowledgeMap } from './components/KnowledgeMap'
 import { AuthScreen } from './components/AuthScreen'
-import { highlightsStorageKey, initialTopics, studyHistoryStorageKey, studyItemsStorageKey, topicOrderStorageKey, topicsStorageKey } from './data'
-import type { Highlight, StudyHistory, StudyItem, Topic, TopicFormValues } from './types'
+import { NotesPage } from './components/NotesPage'
+import { highlightsStorageKey, initialTopics, notesStorageKey, studyHistoryStorageKey, studyItemsStorageKey, topicOrderStorageKey, topicsStorageKey } from './data'
+import type { Highlight, Note, StudyHistory, StudyItem, Topic, TopicFormValues } from './types'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import { loadCloudTopics, migrateTopics, saveCloudOrder, saveCloudTopic } from './services/topics'
+import { deleteCloudTopic, loadCloudTopics, migrateTopics, saveCloudOrder, saveCloudTopic } from './services/topics'
+import { deleteCloudNote, loadCloudNotes, migrateNotes, saveCloudNote } from './services/notes'
 import { deleteCloudHighlight, loadCloudStudy, migrateStudy, saveCloudHighlight, saveCloudHistory, saveCloudStudyItem } from './services/study'
 import type { Session } from '@supabase/supabase-js'
 import './App.css'
@@ -34,9 +36,9 @@ function formatRelativeDate(value: string) {
   return `${days} gün önce`
 }
 
-function BottomNavigation({ activeScreen, onTopics, onLearningPath, onStudyItems, onKnowledgeMap }: { activeScreen: string; onTopics: () => void; onLearningPath: () => void; onStudyItems: () => void; onKnowledgeMap: () => void }) {
+function BottomNavigation({ activeScreen, onTopics, onLearningPath, onStudyItems, onNotes, onKnowledgeMap }: { activeScreen: string; onTopics: () => void; onLearningPath: () => void; onStudyItems: () => void; onNotes: () => void; onKnowledgeMap: () => void }) {
   return <nav className="bottom-navigation" aria-label="Ana bölümler">
-    <button className={activeScreen === 'list' ? 'active' : ''} type="button" onClick={onTopics}><span>01</span>Konular</button><button className={activeScreen === 'learning-path' ? 'active' : ''} type="button" onClick={onLearningPath}><span>02</span>Learning Path</button><button className={activeScreen === 'study-list' ? 'active' : ''} type="button" onClick={onStudyItems}><span>03</span>Öğrenecekler</button><button className={activeScreen === 'knowledge-map' ? 'active' : ''} type="button" onClick={onKnowledgeMap}><span>04</span>Knowledge Map</button>
+    <button className={activeScreen === 'list' ? 'active' : ''} type="button" onClick={onTopics}><span>01</span>Konular</button><button className={activeScreen === 'learning-path' ? 'active' : ''} type="button" onClick={onLearningPath}><span>02</span>Learning Path</button><button className={activeScreen === 'study-list' ? 'active' : ''} type="button" onClick={onStudyItems}><span>03</span>Öğrenecekler</button><button className={activeScreen === 'notes' ? 'active' : ''} type="button" onClick={onNotes}><span>04</span>Notlar</button><button className={activeScreen === 'knowledge-map' ? 'active' : ''} type="button" onClick={onKnowledgeMap}><span>05</span>Knowledge Map</button>
   </nav>
 }
 
@@ -45,13 +47,15 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [localMode, setLocalMode] = useState(false)
   const [cloudReady, setCloudReady] = useState(!isSupabaseConfigured)
+  const [cloudWriteEnabled, setCloudWriteEnabled] = useState(!isSupabaseConfigured)
   const [migrationNeeded, setMigrationNeeded] = useState(false)
   const [cloudError, setCloudError] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [topics, setTopics] = useState<Topic[]>(loadTopics)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('manual')
   const [draggedTopicId, setDraggedTopicId] = useState<string | null>(null)
-  const [screen, setScreen] = useState<'list' | 'form' | 'reader' | 'study-list' | 'learning-path' | 'knowledge-map'>('list')
+  const [screen, setScreen] = useState<'list' | 'form' | 'reader' | 'study-list' | 'notes' | 'learning-path' | 'knowledge-map'>('list')
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null)
   const [studyItems, setStudyItems] = useState<StudyItem[]>(() => {
     try {
@@ -77,6 +81,14 @@ function App() {
       return []
     }
   })
+  const [notes, setNotes] = useState<Note[]>(() => {
+    try {
+      const storedNotes = JSON.parse(window.localStorage.getItem(notesStorageKey) ?? '[]')
+      return Array.isArray(storedNotes) ? storedNotes as Note[] : []
+    } catch {
+      return []
+    }
+  })
   const [conversionSource, setConversionSource] = useState<StudyItem | null>(null)
   const [toast, setToast] = useState('')
   const [manualOrder, setManualOrder] = useState<string[]>(() => {
@@ -93,7 +105,7 @@ function App() {
     }
     return storedTopics.map((topic) => topic.id)
   })
-  const localSnapshot = useRef({ topics, topicOrder: manualOrder, studyItems, studyHistory, highlights })
+  const localSnapshot = useRef({ topics, topicOrder: manualOrder, studyItems, studyHistory, highlights, notes })
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return
@@ -115,7 +127,7 @@ function App() {
   useEffect(() => {
     if (!isSupabaseConfigured || localMode || !session) return
     let cancelled = false
-    Promise.all([loadCloudTopics(session.user.id), loadCloudStudy(session.user.id)]).then(([cloudTopics, cloudStudy]) => {
+    Promise.all([loadCloudTopics(session.user.id), loadCloudStudy(session.user.id), loadCloudNotes(session.user.id)]).then(([cloudTopics, cloudStudy, cloudNotes]) => {
       if (cancelled) return
       if (cloudTopics.length) {
         setTopics(cloudTopics)
@@ -123,8 +135,13 @@ function App() {
         setStudyItems(cloudStudy.items)
         setStudyHistory(cloudStudy.history)
         setHighlights(cloudStudy.highlights)
-      } else if (localSnapshot.current.topics.length || localSnapshot.current.studyItems.length || localSnapshot.current.studyHistory.length || localSnapshot.current.highlights.length) {
+          setNotes(cloudNotes)
+          setCloudWriteEnabled(true)
+        } else if (localSnapshot.current.topics.length || localSnapshot.current.studyItems.length || localSnapshot.current.studyHistory.length || localSnapshot.current.highlights.length || localSnapshot.current.notes.length) {
         setMigrationNeeded(true)
+          setCloudWriteEnabled(false)
+        } else {
+          setCloudWriteEnabled(true)
       }
       setCloudReady(true)
     }).catch(() => {
@@ -138,33 +155,39 @@ function App() {
 
   useEffect(() => {
     window.localStorage.setItem(topicsStorageKey, JSON.stringify(topics))
-    if (!isSupabaseConfigured || localMode || !session || !cloudReady) return
+    if (!isSupabaseConfigured || localMode || !session || !cloudReady || !cloudWriteEnabled) return
     Promise.all(topics.map((topic) => saveCloudTopic(session.user.id, topic))).catch(() => setCloudError('Değişiklik çevrimiçi kaydedilemedi.'))
-  }, [cloudReady, localMode, session, topics])
+  }, [cloudReady, cloudWriteEnabled, localMode, session, topics])
 
   useEffect(() => {
     window.localStorage.setItem(topicOrderStorageKey, JSON.stringify(manualOrder))
-    if (!isSupabaseConfigured || localMode || !session || !cloudReady) return
+    if (!isSupabaseConfigured || localMode || !session || !cloudReady || !cloudWriteEnabled) return
     saveCloudOrder(session.user.id, manualOrder).catch(() => setCloudError('Konu sırası çevrimiçi kaydedilemedi.'))
-  }, [cloudReady, localMode, manualOrder, session])
+  }, [cloudReady, cloudWriteEnabled, localMode, manualOrder, session])
 
   useEffect(() => {
     window.localStorage.setItem(studyItemsStorageKey, JSON.stringify(studyItems))
-    if (!isSupabaseConfigured || localMode || !session || !cloudReady) return
+    if (!isSupabaseConfigured || localMode || !session || !cloudReady || !cloudWriteEnabled) return
     Promise.all(studyItems.map((item) => saveCloudStudyItem(session.user.id, item))).catch(() => setCloudError('Öğrenecekler listesi çevrimiçi kaydedilemedi.'))
-  }, [cloudReady, localMode, session, studyItems])
+  }, [cloudReady, cloudWriteEnabled, localMode, session, studyItems])
 
   useEffect(() => {
     window.localStorage.setItem(studyHistoryStorageKey, JSON.stringify(studyHistory))
-    if (!isSupabaseConfigured || localMode || !session || !cloudReady) return
+    if (!isSupabaseConfigured || localMode || !session || !cloudReady || !cloudWriteEnabled) return
     Promise.all(studyHistory.map((study) => saveCloudHistory(session.user.id, study))).catch(() => setCloudError('Çalışma geçmişi çevrimiçi kaydedilemedi.'))
-  }, [cloudReady, localMode, session, studyHistory])
+  }, [cloudReady, cloudWriteEnabled, localMode, session, studyHistory])
 
   useEffect(() => {
     window.localStorage.setItem(highlightsStorageKey, JSON.stringify(highlights))
-    if (!isSupabaseConfigured || localMode || !session || !cloudReady) return
+    if (!isSupabaseConfigured || localMode || !session || !cloudReady || !cloudWriteEnabled) return
     Promise.all(highlights.map((highlight) => saveCloudHighlight(session.user.id, highlight))).catch(() => setCloudError('İşaretler çevrimiçi kaydedilemedi.'))
-  }, [cloudReady, highlights, localMode, session])
+  }, [cloudReady, cloudWriteEnabled, highlights, localMode, session])
+
+  useEffect(() => {
+    window.localStorage.setItem(notesStorageKey, JSON.stringify(notes))
+    if (!isSupabaseConfigured || localMode || !session || !cloudReady || !cloudWriteEnabled) return
+    Promise.all(notes.map((note) => saveCloudNote(session.user.id, note))).catch(() => setCloudError('Notlar çevrimiçi kaydedilemedi.'))
+  }, [cloudReady, cloudWriteEnabled, localMode, notes, session])
 
   useEffect(() => {
     if (!toast) return
@@ -175,7 +198,9 @@ function App() {
   async function transferLocalData() {
     if (!session) return
     try {
-      await migrateTopics(session.user.id, { topics, topicOrder: manualOrder, studyItems, studyHistory, highlights }, migrateStudy)
+        await migrateTopics(session.user.id, { topics, topicOrder: manualOrder, studyItems, studyHistory, highlights, notes }, migrateStudy)
+        if (notes.length && supabase) await migrateNotes(supabase, session.user.id, { topics, topicOrder: manualOrder, studyItems, studyHistory, highlights, notes })
+        setCloudWriteEnabled(true)
       setMigrationNeeded(false)
       setToast('Yerel verilerin çevrimiçi hesaba aktarıldı.')
     } catch {
@@ -205,7 +230,7 @@ function App() {
       if (sortMode === 'newest') return secondTopic.createdAt.localeCompare(firstTopic.createdAt)
       return secondTopic.updatedAt.localeCompare(firstTopic.updatedAt)
     })
-  const visibleTopics = sortedTopics.filter((topic) => topic.title.toLocaleLowerCase('tr-TR').includes(searchTerm.toLocaleLowerCase('tr-TR')))
+  const visibleTopics = sortedTopics.filter((topic) => Boolean(topic.archivedAt) === showArchived && topic.title.toLocaleLowerCase('tr-TR').includes(searchTerm.toLocaleLowerCase('tr-TR')))
 
   function handleDrop(targetTopicId: string) {
     if (sortMode !== 'manual' || !draggedTopicId || draggedTopicId === targetTopicId) return
@@ -243,6 +268,10 @@ function App() {
     setScreen('study-list')
   }
 
+  function openNotes() {
+    setScreen('notes')
+  }
+
   function openLearningPath() {
     setScreen('learning-path')
   }
@@ -259,7 +288,7 @@ function App() {
   }
 
   function exportBackup() {
-    const backup = { topics, topicOrder: manualOrder, studyItems, studyHistory, highlights }
+    const backup = { topics, topicOrder: manualOrder, studyItems, studyHistory, highlights, notes }
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -285,6 +314,7 @@ function App() {
         setStudyItems(backup.studyItems as StudyItem[])
         setStudyHistory(backup.studyHistory as StudyHistory[])
         setHighlights((backup.highlights ?? []) as Highlight[])
+          setNotes((backup.notes ?? []) as Note[])
         setToast('wondR verilerin geri yüklendi.')
       } catch {
         setToast('Bu dosya geçerli bir wondR yedeği değil.')
@@ -320,6 +350,41 @@ function App() {
     setToast('İşaret kaldırıldı.')
   }
 
+  function createNote(content: string, topicId: string) {
+    const now = new Date().toISOString()
+    setNotes((currentNotes) => [{ id: `note-${Date.now()}`, topicId, content, createdAt: now, updatedAt: now }, ...currentNotes])
+    setToast('Çalışma notun kaydedildi.')
+  }
+
+  function updateNote(noteId: string, content: string) {
+    setNotes((currentNotes) => currentNotes.map((note) => note.id === noteId ? { ...note, content, updatedAt: new Date().toISOString() } : note))
+    setToast('Çalışma notun güncellendi.')
+  }
+
+  function removeNote(noteId: string) {
+    setNotes((currentNotes) => currentNotes.filter((note) => note.id !== noteId))
+    if (isSupabaseConfigured && !localMode && session) deleteCloudNote(session.user.id, noteId).catch(() => setCloudError('Not çevrimiçi silinemedi.'))
+    setToast('Çalışma notu silindi.')
+  }
+
+  function toggleArchive(topicId: string) {
+    setTopics((currentTopics) => currentTopics.map((topic) => topic.id === topicId ? { ...topic, archivedAt: topic.archivedAt ? undefined : new Date().toISOString() } : topic))
+    setToast('Konu arşiv durumu güncellendi.')
+  }
+
+  function removeTopic(topicId: string) {
+    setTopics((currentTopics) => currentTopics.filter((topic) => topic.id !== topicId))
+    setManualOrder((currentOrder) => currentOrder.filter((id) => id !== topicId))
+    setNotes((currentNotes) => currentNotes.filter((note) => note.topicId !== topicId))
+    setHighlights((currentHighlights) => currentHighlights.filter((highlight) => highlight.topicId !== topicId))
+    setStudyHistory((currentHistory) => currentHistory.filter((study) => study.topicId !== topicId))
+    setStudyItems((currentItems) => currentItems.filter((item) => item.topicId !== topicId))
+    if (isSupabaseConfigured && !localMode && session) deleteCloudTopic(session.user.id, topicId).catch(() => setCloudError('Konu çevrimiçi silinemedi.'))
+    setActiveTopicId(null)
+    setScreen('list')
+    setToast('Konu silindi.')
+  }
+
   function convertStudyItem(item: StudyItem) {
     setConversionSource(item)
     setActiveTopicId(null)
@@ -346,6 +411,8 @@ function App() {
       childTopicIds,
       relatedTopicIds,
       lastStudied: existingTopic?.lastStudied ?? 'Henüz çalışılmadı',
+      lastStudiedAt: existingTopic?.lastStudiedAt,
+      archivedAt: existingTopic?.archivedAt,
       createdAt: existingTopic?.createdAt ?? now,
       updatedAt: now,
     }
@@ -363,8 +430,8 @@ function App() {
     const latestTopic = latestStudy ? topics.find((topic) => topic.id === latestStudy.topicId) : undefined
     const neglectedTopic = topics.filter((topic) => !studyHistory.some((study) => study.topicId === topic.id)).sort((first, second) => first.updatedAt.localeCompare(second.updatedAt))[0]
     return <main className="topics" id="topics">
-      <div className="page-heading"><p className="eyebrow">MERAK ALANIN</p><h1>Konularım<span>.</span></h1><p className="topic-count">{String(visibleTopics.length).padStart(2, '0')} / {String(topics.length).padStart(2, '0')} KONU</p></div>
-      {topics.length === 0 ? <section className="empty-home" aria-label="Boş konu durumu"><p className="manifesto">I WONDER HOW THIS WORKS.</p><h2>Henüz bir öğrenme konusu yok.</h2><button className="study-button" type="button" onClick={openNewTopic}>+ İlk konunu oluştur</button></section> : <><section className="learning-summary" aria-label="Kişisel öğrenme özeti"><div><p>DEVAM ET</p><strong>{latestTopic?.title ?? 'İlk konunu seç'}</strong><span>{latestStudy ? `Son çalışma: ${formatRelativeDate(latestStudy.startedAt)}` : 'Çalışmaya başla'}</span></div><button type="button" onClick={openStudyItems}><p>ÖĞRENECEKLER</p><strong>{studyItems.filter((item) => item.status === 'todo').length}</strong><span>bekleyen ifade</span></button><div><p>GERİ DÖN</p><strong>{neglectedTopic?.title ?? 'Tüm konular güncel'}</strong><span>{neglectedTopic ? `${formatRelativeDate(neglectedTopic.updatedAt)} çalışılmadı` : 'Güzel gidiyorsun'}</span></div></section><div className="topic-toolbar"><label className="search-field"><span className="visually-hidden">Konularda ara</span><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Konularda ara" /></label><div className="toolbar-actions"><label className="sort-control"><span>Sırala</span><select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}><option value="manual">Manuel</option><option value="last-studied">Son çalışılan</option><option value="newest">Yeni eklenen</option><option value="alphabetical">A-Z</option></select></label><button className="new-topic" type="button" onClick={openNewTopic}><span>+</span> Yeni Konu</button></div></div><TopicGrid topics={visibleTopics} isDraggable={sortMode === 'manual'} onDragStart={setDraggedTopicId} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={() => setDraggedTopicId(null)} onStudy={startStudy} onEdit={openEditTopic}/></>}
+      <div className="page-heading"><p className="eyebrow">MERAK ALANIN</p><h1>{showArchived ? 'Arşiv' : 'Konularım'}<span>.</span></h1><p className="topic-count">{String(visibleTopics.length).padStart(2, '0')} / {String(topics.filter((topic) => Boolean(topic.archivedAt) === showArchived).length).padStart(2, '0')} KONU</p></div>
+      {topics.length === 0 && !showArchived ? <section className="empty-home" aria-label="Boş konu durumu"><p className="manifesto">I WONDER HOW THIS WORKS.</p><h2>Henüz bir öğrenme konusu yok.</h2><button className="study-button" type="button" onClick={openNewTopic}>+ İlk konunu oluştur</button></section> : <><section className="learning-summary" aria-label="Kişisel öğrenme özeti"><div><p>DEVAM ET</p><strong>{latestTopic?.title ?? 'İlk konunu seç'}</strong><span>{latestStudy ? `Son çalışma: ${formatRelativeDate(latestStudy.startedAt)}` : 'Çalışmaya başla'}</span></div><button type="button" onClick={openStudyItems}><p>ÖĞRENECEKLER</p><strong>{studyItems.filter((item) => item.status === 'todo').length}</strong><span>bekleyen ifade</span></button><div><p>GERİ DÖN</p><strong>{neglectedTopic?.title ?? 'Tüm konular güncel'}</strong><span>{neglectedTopic ? `${formatRelativeDate(neglectedTopic.updatedAt)} çalışılmadı` : 'Güzel gidiyorsun'}</span></div></section><div className="topic-toolbar"><label className="search-field"><span className="visually-hidden">Konularda ara</span><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Konularda ara" /></label><div className="toolbar-actions"><label className="sort-control"><span>Sırala</span><select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}><option value="manual">Manuel</option><option value="last-studied">Son çalışılan</option><option value="newest">Yeni eklenen</option><option value="alphabetical">A-Z</option></select></label><button className="archive-toggle" type="button" onClick={() => setShowArchived((current) => !current)}>{showArchived ? 'Konular' : 'Arşiv'}</button><button className="new-topic" type="button" onClick={openNewTopic}><span>+</span> Yeni Konu</button></div></div>{visibleTopics.length === 0 ? <p className="empty-topics">{showArchived ? 'Arşivin boş.' : 'Bu aramaya uyan konu bulunamadı.'}</p> : <TopicGrid topics={visibleTopics} isDraggable={!showArchived && sortMode === 'manual'} onDragStart={setDraggedTopicId} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={() => setDraggedTopicId(null)} onStudy={startStudy} onEdit={openEditTopic} onArchive={toggleArchive} isArchived={showArchived}/>}</>}
     </main>
   }
 
@@ -373,13 +440,14 @@ function App() {
     {cloudError && <div className="cloud-error" role="alert">{cloudError}<button type="button" onClick={() => setCloudError('')} aria-label="Mesajı kapat">×</button></div>}
     {migrationNeeded && <div className="migration-backdrop"><section className="migration-dialog" role="dialog" aria-modal="true" aria-labelledby="migration-title"><p className="eyebrow">ÇEVRİMİÇİ HESAP</p><h2 id="migration-title">Yerel verilerini aktar</h2><p>Cihazındaki konular, Öğrenecekler listen ve çalışma geçmişin bu hesaba aktarılabilir. Aktarım başarılı olmadan yerel verilerin silinmez.</p><div><button className="edit-button" type="button" onClick={continueWithoutTransfer}>Şimdilik yerelde kal</button><button className="study-button" type="button" onClick={transferLocalData}>Hesaba aktar</button></div></section></div>}
     {screen === 'list' && renderList()}
-    {screen === 'learning-path' && <LearningPath topics={topics} onOpenTopic={openReader}/>} 
-    {screen === 'knowledge-map' && <KnowledgeMap topics={topics} studyHistory={studyHistory} onStudy={startStudy} onEdit={openEditTopic} onOpenTopic={openReader} onCreateTopic={openNewTopic}/>} 
+    {screen === 'learning-path' && <LearningPath topics={topics.filter((topic) => !topic.archivedAt)} onOpenTopic={openReader}/>} 
+    {screen === 'knowledge-map' && <KnowledgeMap topics={topics.filter((topic) => !topic.archivedAt)} studyHistory={studyHistory} onStudy={startStudy} onEdit={openEditTopic} onOpenTopic={openReader} onCreateTopic={openNewTopic}/>} 
     {screen === 'form' && <TopicForm key={`${activeTopicId ?? 'new'}-${conversionSource?.id ?? ''}`} topic={activeTopic} topics={topics} initialTitle={conversionSource?.text} sourceTopicTitle={conversionSource ? topics.find((topic) => topic.id === conversionSource.topicId)?.title : undefined} onCancel={() => setScreen(activeTopic ? 'reader' : 'list')} onSave={saveTopic}/>} 
-    {screen === 'reader' && activeTopic && <TopicReader topic={activeTopic} topics={topics} studyHistory={studyHistory.filter((study) => study.topicId === activeTopic.id)} highlights={highlights.filter((highlight) => highlight.topicId === activeTopic.id)} onBack={() => setScreen('list')} onEdit={openEditTopic} onAddStudyItem={(text, sourceExcerpt) => addStudyItem(text, sourceExcerpt, activeTopic.id)} onAddHighlight={addHighlight} onRemoveHighlight={removeHighlight}/>} 
+    {screen === 'reader' && activeTopic && <TopicReader topic={activeTopic} topics={topics} studyHistory={studyHistory.filter((study) => study.topicId === activeTopic.id)} highlights={highlights.filter((highlight) => highlight.topicId === activeTopic.id)} notes={notes.filter((note) => note.topicId === activeTopic.id)} studyItems={studyItems.filter((item) => item.topicId === activeTopic.id)} onBack={() => setScreen('list')} onEdit={openEditTopic} onOpenTopic={openReader} onArchive={toggleArchive} onDelete={removeTopic} onAddStudyItem={(text, sourceExcerpt) => addStudyItem(text, sourceExcerpt, activeTopic.id)} onAddHighlight={addHighlight} onRemoveHighlight={removeHighlight} onCreateNote={createNote} onUpdateNote={updateNote} onDeleteNote={removeNote}/>} 
     {screen === 'study-list' && <StudyList items={studyItems} topics={topics} onBack={() => setScreen('list')} onConvert={convertStudyItem} onComplete={completeStudyItem}/>} 
+    {screen === 'notes' && <NotesPage notes={notes} topics={topics} onBack={() => setScreen('list')} onOpenTopic={openReader} onEditNote={updateNote} onDeleteNote={removeNote}/>} 
     {toast && <div className="toast" role="status">{toast}</div>}
-    <BottomNavigation activeScreen={screen} onTopics={() => setScreen('list')} onLearningPath={openLearningPath} onStudyItems={openStudyItems} onKnowledgeMap={openKnowledgeMap}/>
+    <BottomNavigation activeScreen={screen} onTopics={() => { setShowArchived(false); setScreen('list') }} onLearningPath={openLearningPath} onStudyItems={openStudyItems} onNotes={openNotes} onKnowledgeMap={openKnowledgeMap}/>
   </div>
 }
 export default App

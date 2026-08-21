@@ -9,8 +9,11 @@ create table if not exists public.topics (
   created_at timestamptz not null,
   updated_at timestamptz not null,
   last_studied_at timestamptz,
+  archived_at timestamptz,
   primary key (user_id, id)
 );
+
+alter table public.topics add column if not exists archived_at timestamptz;
 
 create table if not exists public.topic_relations (
   id uuid primary key default gen_random_uuid(),
@@ -67,6 +70,19 @@ create table if not exists public.highlights (
   foreign key (user_id, topic_id) references public.topics(user_id, id) on delete cascade
 );
 
+create table if not exists public.notes (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  id text not null,
+  topic_id text not null,
+  content text not null,
+  study_history_id text,
+  created_at timestamptz not null,
+  updated_at timestamptz not null,
+  primary key (user_id, id),
+  foreign key (user_id, topic_id) references public.topics(user_id, id) on delete cascade,
+  foreign key (user_id, study_history_id) references public.study_history(user_id, id) on delete set null
+);
+
 create index if not exists topics_user_updated_idx on public.topics(user_id, updated_at desc);
 create index if not exists relations_user_source_idx on public.topic_relations(user_id, source_topic_id);
 create index if not exists relations_user_target_idx on public.topic_relations(user_id, target_topic_id);
@@ -74,6 +90,9 @@ create index if not exists study_items_user_topic_idx on public.study_items(user
 create index if not exists study_history_user_topic_idx on public.study_history(user_id, topic_id, started_at desc);
 create index if not exists highlights_user_idx on public.highlights(user_id);
 create index if not exists highlights_user_topic_idx on public.highlights(user_id, topic_id);
+create index if not exists notes_user_idx on public.notes(user_id);
+create index if not exists notes_user_topic_idx on public.notes(user_id, topic_id);
+create index if not exists notes_user_created_idx on public.notes(user_id, created_at desc);
 
 alter table public.topics enable row level security;
 alter table public.topic_relations enable row level security;
@@ -81,6 +100,7 @@ alter table public.study_items enable row level security;
 alter table public.study_history enable row level security;
 alter table public.topic_order enable row level security;
 alter table public.highlights enable row level security;
+alter table public.notes enable row level security;
 
 do $$
 begin
@@ -96,4 +116,6 @@ begin
   create policy "Users manage own topic order" on public.topic_order for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
   drop policy if exists "Users manage own highlights" on public.highlights;
   create policy "Users manage own highlights" on public.highlights for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  drop policy if exists "Users manage own notes" on public.notes;
+  create policy "Users manage own notes" on public.notes for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 end $$;

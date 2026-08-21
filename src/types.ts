@@ -8,6 +8,7 @@ export type Topic = {
   relatedTopicIds: string[]
   lastStudied: string
   lastStudiedAt?: string
+  archivedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -44,4 +45,13 @@ export type Highlight = {
   createdAt: string
   contextBefore?: string
   contextAfter?: string
+}
+
+export type Note = {
+  id: string
+  topicId: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  studyHistoryId?: string
 }
