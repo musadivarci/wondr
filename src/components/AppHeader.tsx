@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, MouseEvent } from 'react'
 
 type AppHeaderProps = {
   canLogOut: boolean
@@ -9,7 +9,7 @@ type AppHeaderProps = {
 }
 
 export function AppHeader({ canLogOut, onHome, onExport, onImport, onLogOut }: AppHeaderProps) {
-  function goHome(event: React.MouseEvent<HTMLAnchorElement>) {
+  function goHome(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault()
     onHome()
   }
