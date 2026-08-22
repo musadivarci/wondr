@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Highlight, Note, StudyHistory, StudyItem, Topic } from '../types'
+import './TopicReader.css'
 
 type TopicReaderProps = {
   topic: Topic
