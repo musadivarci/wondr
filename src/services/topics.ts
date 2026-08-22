@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Topic } from '../types'
 import { supabase } from '../lib/supabase'
+import { withCloudRetry } from './cloudRetry'
 
 type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; created_at: string; updated_at: string; last_studied_at: string | null; archived_at: string | null }
 type RelationRow = { user_id: string; source_topic_id: string; target_topic_id: string; relation_type: 'parent' | 'child' | 'related' }
@@ -45,15 +46,17 @@ function buildTopics(rows: TopicRow[], relations: RelationRow[], order: OrderRow
 
 export async function loadCloudTopics(userId: string) {
   const client = clientOrThrow()
-  const [topicsResult, relationsResult, orderResult] = await Promise.all([
-    client.from('topics').select('*').eq('user_id', userId),
-    client.from('topic_relations').select('user_id,source_topic_id,target_topic_id,relation_type').eq('user_id', userId),
-    client.from('topic_order').select('user_id,topic_id,position').eq('user_id', userId).order('position'),
-  ])
-  if (topicsResult.error) throw topicsResult.error
-  if (relationsResult.error) throw relationsResult.error
-  if (orderResult.error) throw orderResult.error
-  return buildTopics(topicsResult.data as TopicRow[], relationsResult.data as RelationRow[], orderResult.data as OrderRow[])
+  return withCloudRetry(client, async () => {
+    const [topicsResult, relationsResult, orderResult] = await Promise.all([
+      client.from('topics').select('*').eq('user_id', userId),
+      client.from('topic_relations').select('user_id,source_topic_id,target_topic_id,relation_type').eq('user_id', userId),
+      client.from('topic_order').select('user_id,topic_id,position').eq('user_id', userId).order('position'),
+    ])
+    if (topicsResult.error) throw topicsResult.error
+    if (relationsResult.error) throw relationsResult.error
+    if (orderResult.error) throw orderResult.error
+    return buildTopics(topicsResult.data as TopicRow[], relationsResult.data as RelationRow[], orderResult.data as OrderRow[])
+  })
 }
 
 function relationRows(userId: string, topic: Topic): RelationRow[] {
