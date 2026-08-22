@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Highlight, StudyHistory, StudyItem } from '../types'
 import type { LocalSnapshot } from './topics'
 import { supabase } from '../lib/supabase'
+import { withCloudRetry } from './cloudRetry'
 
 type StudyItemRow = { user_id: string; id: string; text: string; topic_id: string; source_excerpt: string; created_at: string; status: 'todo' | 'done' }
 type StudyHistoryRow = { user_id: string; id: string; topic_id: string; started_at: string }
@@ -14,18 +15,20 @@ function clientOrThrow() {
 
 export async function loadCloudStudy(userId: string) {
   const client = clientOrThrow()
-  const [itemsResult, historyResult, highlightsResult] = await Promise.all([
-    client.from('study_items').select('*').eq('user_id', userId),
-    client.from('study_history').select('*').eq('user_id', userId).order('started_at', { ascending: false }),
-    client.from('highlights').select('*').eq('user_id', userId),
-  ])
-  if (itemsResult.error) throw itemsResult.error
-  if (historyResult.error) throw historyResult.error
-  if (highlightsResult.error) throw highlightsResult.error
-  const items = (itemsResult.data as StudyItemRow[]).map((item) => ({ id: item.id, text: item.text, topicId: item.topic_id, sourceExcerpt: item.source_excerpt, createdAt: item.created_at, status: item.status }))
-  const history = (historyResult.data as StudyHistoryRow[]).map((study) => ({ id: study.id, topicId: study.topic_id, startedAt: study.started_at }))
-  const highlights = (highlightsResult.data as HighlightRow[]).map((highlight) => ({ id: highlight.id, topicId: highlight.topic_id, selectedText: highlight.selected_text, startOffset: highlight.start_offset, endOffset: highlight.end_offset, contextBefore: highlight.context_before, contextAfter: highlight.context_after, createdAt: highlight.created_at }))
-  return { items, history, highlights }
+  return withCloudRetry(client, async () => {
+    const [itemsResult, historyResult, highlightsResult] = await Promise.all([
+      client.from('study_items').select('*').eq('user_id', userId),
+      client.from('study_history').select('*').eq('user_id', userId).order('started_at', { ascending: false }),
+      client.from('highlights').select('*').eq('user_id', userId),
+    ])
+    if (itemsResult.error) throw itemsResult.error
+    if (historyResult.error) throw historyResult.error
+    if (highlightsResult.error) throw highlightsResult.error
+    const items = (itemsResult.data as StudyItemRow[]).map((item) => ({ id: item.id, text: item.text, topicId: item.topic_id, sourceExcerpt: item.source_excerpt, createdAt: item.created_at, status: item.status }))
+    const history = (historyResult.data as StudyHistoryRow[]).map((study) => ({ id: study.id, topicId: study.topic_id, startedAt: study.started_at }))
+    const highlights = (highlightsResult.data as HighlightRow[]).map((highlight) => ({ id: highlight.id, topicId: highlight.topic_id, selectedText: highlight.selected_text, startOffset: highlight.start_offset, endOffset: highlight.end_offset, contextBefore: highlight.context_before, contextAfter: highlight.context_after, createdAt: highlight.created_at }))
+    return { items, history, highlights }
+  })
 }
 
 export async function saveCloudStudyItem(userId: string, item: StudyItem) {
