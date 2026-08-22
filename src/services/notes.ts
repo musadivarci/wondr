@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Note } from '../types'
 import type { LocalSnapshot } from './topics'
 import { supabase } from '../lib/supabase'
+import { withCloudRetry } from './cloudRetry'
 
 type NoteRow = { user_id: string; id: string; topic_id: string; content: string; study_history_id: string | null; created_at: string; updated_at: string }
 
@@ -15,9 +16,12 @@ function mapNote(note: NoteRow): Note {
 }
 
 export async function loadCloudNotes(userId: string) {
-  const result = await clientOrThrow().from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false })
-  if (result.error) throw result.error
-  return (result.data as NoteRow[]).map(mapNote)
+  const client = clientOrThrow()
+  return withCloudRetry(client, async () => {
+    const result = await client.from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+    if (result.error) throw result.error
+    return (result.data as NoteRow[]).map(mapNote)
+  })
 }
 
 export async function saveCloudNote(userId: string, note: Note) {
