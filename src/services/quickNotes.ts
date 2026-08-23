@@ -1,6 +1,8 @@
 import type { QuickNote } from '../types'
 import { supabase } from '../lib/supabase'
 
+export const quickNotesStorageKey = 'wondr-quick-notes'
+
 type QuickNoteRow = {
   user_id: string
   id: string
@@ -23,6 +25,42 @@ function mapQuickNote(row: QuickNoteRow): QuickNote {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+function readLocalQuickNotes() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(quickNotesStorageKey) ?? '[]')
+    return Array.isArray(value) ? value as QuickNote[] : []
+  } catch {
+    return []
+  }
+}
+
+export async function createQuickNoteFromText(content: string, category = 'Okumadan') {
+  const cleanContent = content.trim()
+  if (!cleanContent) throw new Error('Boş Short oluşturulamaz.')
+  const now = new Date().toISOString()
+  const note: QuickNote = {
+    id: `quick-${Date.now()}`,
+    category,
+    content: cleanContent,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const localNotes = readLocalQuickNotes()
+  window.localStorage.setItem(quickNotesStorageKey, JSON.stringify([note, ...localNotes]))
+
+  if (supabase) {
+    const { data } = await supabase.auth.getSession()
+    if (data.session) {
+      try {
+        await saveQuickNote(data.session.user.id, note)
+      } catch {
+        // Local-first: the Short remains safely on-device if cloud sync is temporarily unavailable.
+      }
+    }
+  }
+  return note
 }
 
 export async function loadQuickNotes(userId: string) {
