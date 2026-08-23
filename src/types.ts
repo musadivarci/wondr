@@ -1,8 +1,18 @@
+export type Category = {
+  id: string
+  name: string
+  parentId: string | null
+  position: number
+  createdAt: string
+  updatedAt: string
+}
+
 export type Topic = {
   id: string
   title: string
   notes: string
   noteCount: number
+  categoryId?: string
   parentTopicIds: string[]
   childTopicIds: string[]
   relatedTopicIds: string[]
@@ -16,6 +26,7 @@ export type Topic = {
 export type TopicFormValues = {
   title: string
   notes: string
+  categoryId: string
   parentTopicId: string
   childTopicId: string
   relatedTopicId: string
