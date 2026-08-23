@@ -3,7 +3,7 @@ import type { Topic } from '../types'
 import { supabase } from '../lib/supabase'
 import { withCloudRetry } from './cloudRetry'
 
-type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; category_id: string | null; created_at: string; updated_at: string; last_studied_at: string | null; archived_at: string | null }
+type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; category_id?: string | null; created_at: string; updated_at: string; last_studied_at: string | null; archived_at: string | null }
 type RelationRow = { user_id: string; source_topic_id: string; target_topic_id: string; relation_type: 'parent' | 'child' | 'related' }
 type OrderRow = { user_id: string; topic_id: string; position: number }
 
@@ -82,7 +82,7 @@ function topicRow(userId: string, topic: Topic) {
     title: topic.title,
     notes: topic.notes,
     note_count: topic.noteCount,
-    category_id: topic.categoryId ?? null,
+    ...(topic.categoryId !== undefined ? { category_id: topic.categoryId || null } : {}),
     created_at: topic.createdAt,
     updated_at: topic.updatedAt,
     last_studied_at: topic.lastStudiedAt ?? null,
