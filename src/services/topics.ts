@@ -3,7 +3,7 @@ import type { Topic } from '../types'
 import { supabase } from '../lib/supabase'
 import { withCloudRetry } from './cloudRetry'
 
-type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; created_at: string; updated_at: string; last_studied_at: string | null; archived_at: string | null }
+type TopicRow = { user_id: string; id: string; title: string; notes: string; note_count: number; category_id: string | null; created_at: string; updated_at: string; last_studied_at: string | null; archived_at: string | null }
 type RelationRow = { user_id: string; source_topic_id: string; target_topic_id: string; relation_type: 'parent' | 'child' | 'related' }
 type OrderRow = { user_id: string; topic_id: string; position: number }
 
@@ -18,6 +18,7 @@ function buildTopics(rows: TopicRow[], relations: RelationRow[], order: OrderRow
     title: row.title,
     notes: row.notes,
     noteCount: row.note_count,
+    categoryId: row.category_id ?? undefined,
     parentTopicIds: [],
     childTopicIds: [],
     relatedTopicIds: [],
@@ -74,20 +75,24 @@ function allRelationRows(userId: string, topics: Topic[]) {
   return [...new Map(rows.map((row) => [`${row.source_topic_id}-${row.target_topic_id}-${row.relation_type}`, row])).values()]
 }
 
-export async function saveCloudTopic(userId: string, topic: Topic) {
-  const client = clientOrThrow()
-  const topicRow = {
+function topicRow(userId: string, topic: Topic) {
+  return {
     user_id: userId,
     id: topic.id,
     title: topic.title,
     notes: topic.notes,
     note_count: topic.noteCount,
+    category_id: topic.categoryId ?? null,
     created_at: topic.createdAt,
     updated_at: topic.updatedAt,
     last_studied_at: topic.lastStudiedAt ?? null,
     archived_at: topic.archivedAt ?? null,
   }
-  const saved = await client.from('topics').upsert(topicRow, { onConflict: 'user_id,id' })
+}
+
+export async function saveCloudTopic(userId: string, topic: Topic) {
+  const client = clientOrThrow()
+  const saved = await client.from('topics').upsert(topicRow(userId, topic), { onConflict: 'user_id,id' })
   if (saved.error) throw saved.error
   const removed = await client.from('topic_relations').delete().eq('user_id', userId).or(`source_topic_id.eq.${topic.id},target_topic_id.eq.${topic.id}`)
   if (removed.error) throw removed.error
@@ -114,7 +119,7 @@ export type LocalSnapshot = { topics: Topic[]; topicOrder: string[]; studyItems:
 
 export async function migrateTopics(userId: string, snapshot: LocalSnapshot, studyMigration: (client: SupabaseClient, userId: string, snapshot: LocalSnapshot) => Promise<void>) {
   const client = clientOrThrow()
-  const topicRows = snapshot.topics.map((topic) => ({ user_id: userId, id: topic.id, title: topic.title, notes: topic.notes, note_count: topic.noteCount, created_at: topic.createdAt, updated_at: topic.updatedAt, last_studied_at: topic.lastStudiedAt ?? null, archived_at: topic.archivedAt ?? null }))
+  const topicRows = snapshot.topics.map((topic) => topicRow(userId, topic))
   if (topicRows.length) {
     const topicsResult = await client.from('topics').upsert(topicRows, { onConflict: 'user_id,id' })
     if (topicsResult.error) throw topicsResult.error
