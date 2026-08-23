@@ -1,4 +1,4 @@
-export type AppScreen = 'list' | 'form' | 'reader' | 'study-list' | 'notes' | 'learning-path' | 'knowledge-map'
+export type AppScreen = 'list' | 'form' | 'reader' | 'study-list' | 'notes' | 'learning-path' | 'knowledge-map' | 'categories'
 
 type BottomNavigationProps = {
   activeScreen: AppScreen
