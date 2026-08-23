@@ -44,6 +44,7 @@ export function CategoryTreePage({ categories, topics, onBack, onCreate, onRenam
   const [parentId, setParentId] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const rows = useMemo(() => flatten(categories), [categories])
 
   function createCategory(event: React.FormEvent) {
@@ -54,12 +55,21 @@ export function CategoryTreePage({ categories, topics, onBack, onCreate, onRenam
     setName('')
   }
 
+  function toggleTopics(categoryId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(categoryId)) next.delete(categoryId)
+      else next.add(categoryId)
+      return next
+    })
+  }
+
   return <main className="category-page" aria-labelledby="category-page-title">
     <button className="back-link" type="button" onClick={onBack}>← Geri dön</button>
     <header className="category-heading">
       <p className="eyebrow">BİLGİ MİMARİSİ</p>
       <h1 id="category-page-title">Kategori ağacı<span>.</span></h1>
-      <p>Kategoriler konulardan bağımsızdır. Bir kategori, altında henüz hiç konu olmasa bile yapıda durabilir.</p>
+      <p>Kategorileri yönet, alt dalları sırala ve her kategoride biriken konu başlıklarını aynı ağaç üzerinden gör.</p>
     </header>
 
     <form className="category-create" onSubmit={createCategory}>
@@ -72,22 +82,31 @@ export function CategoryTreePage({ categories, topics, onBack, onCreate, onRenam
       {rows.map(({ category, depth }) => {
         const siblings = categories.filter((candidate) => candidate.parentId === category.parentId).sort((a, b) => a.position - b.position)
         const siblingIndex = siblings.findIndex((candidate) => candidate.id === category.id)
-        const topicCount = topics.filter((topic) => topic.categoryId === category.id).length
+        const categoryTopics = topics.filter((topic) => topic.categoryId === category.id && !topic.archivedAt).sort((a, b) => a.title.localeCompare(b.title, 'tr-TR'))
+        const topicCount = categoryTopics.length
+        const isExpanded = expandedIds.has(category.id)
         const blockedParentIds = descendantIds(category.id, categories)
         blockedParentIds.add(category.id)
-        return <article className="category-row" key={category.id} style={{ '--category-depth': depth } as React.CSSProperties}>
-          <div className="category-tree-mark" aria-hidden="true"><span/></div>
-          <div className="category-main">
-            {editingId === category.id ? <form className="category-rename" onSubmit={(event) => { event.preventDefault(); if (editingName.trim()) onRename(category.id, editingName.trim()); setEditingId(null) }}><input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} /><button type="submit">Kaydet</button><button type="button" onClick={() => setEditingId(null)}>İptal</button></form> : <><strong>{category.name}</strong><small>{topicCount} konu · seviye {depth + 1}</small></>}
-          </div>
-          <label className="category-parent-select"><span className="visually-hidden">Üst kategori</span><select aria-label={`${category.name} üst kategorisi`} value={category.parentId ?? ''} onChange={(event) => onChangeParent(category.id, event.target.value || null)}><option value="">Kök</option>{rows.filter(({ category: option }) => !blockedParentIds.has(option.id)).map(({ category: option, depth: optionDepth }) => <option key={option.id} value={option.id}>{'— '.repeat(optionDepth)}{option.name}</option>)}</select></label>
-          <div className="category-actions">
-            <button type="button" disabled={siblingIndex <= 0} onClick={() => onMove(category.id, 'up')} aria-label={`${category.name} yukarı taşı`}>↑</button>
-            <button type="button" disabled={siblingIndex === siblings.length - 1} onClick={() => onMove(category.id, 'down')} aria-label={`${category.name} aşağı taşı`}>↓</button>
-            <button type="button" onClick={() => { setEditingId(category.id); setEditingName(category.name) }}>Düzenle</button>
-            <button type="button" className="category-delete" onClick={() => onDelete(category.id)}>Sil</button>
-          </div>
-        </article>
+
+        return <div className="category-node" key={category.id} style={{ '--category-depth': depth } as React.CSSProperties}>
+          <article className="category-row">
+            <div className="category-tree-mark" aria-hidden="true"><span/></div>
+            <div className="category-main">
+              {editingId === category.id ? <form className="category-rename" onSubmit={(event) => { event.preventDefault(); if (editingName.trim()) onRename(category.id, editingName.trim()); setEditingId(null) }}><input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} /><button type="submit">Kaydet</button><button type="button" onClick={() => setEditingId(null)}>İptal</button></form> : <button className="category-title-button" type="button" onClick={() => toggleTopics(category.id)} aria-expanded={isExpanded}><span className="category-chevron" aria-hidden="true">{isExpanded ? '−' : '+'}</span><span><strong>{category.name}</strong><small>{topicCount} konu · seviye {depth + 1}</small></span></button>}
+            </div>
+            <label className="category-parent-select"><span className="visually-hidden">Üst kategori</span><select aria-label={`${category.name} üst kategorisi`} value={category.parentId ?? ''} onChange={(event) => onChangeParent(category.id, event.target.value || null)}><option value="">Kök</option>{rows.filter(({ category: option }) => !blockedParentIds.has(option.id)).map(({ category: option, depth: optionDepth }) => <option key={option.id} value={option.id}>{'— '.repeat(optionDepth)}{option.name}</option>)}</select></label>
+            <div className="category-actions">
+              <button type="button" disabled={siblingIndex <= 0} onClick={() => onMove(category.id, 'up')} aria-label={`${category.name} yukarı taşı`}>↑</button>
+              <button type="button" disabled={siblingIndex === siblings.length - 1} onClick={() => onMove(category.id, 'down')} aria-label={`${category.name} aşağı taşı`}>↓</button>
+              <button type="button" onClick={() => { setEditingId(category.id); setEditingName(category.name) }}>Düzenle</button>
+              <button type="button" className="category-delete" onClick={() => onDelete(category.id)}>Sil</button>
+            </div>
+          </article>
+
+          {isExpanded && <section className="category-topic-panel" aria-label={`${category.name} konuları`}>
+            {categoryTopics.length === 0 ? <p>Bu kategoriye henüz konu bağlanmamış.</p> : <ol>{categoryTopics.map((topic, index) => <li key={topic.id}><span>{String(index + 1).padStart(2, '0')}</span><strong>{topic.title}</strong></li>)}</ol>}
+          </section>}
+        </div>
       })}
     </section>}
   </main>
