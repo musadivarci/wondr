@@ -14,6 +14,7 @@ export const initialTopics: Topic[] = [
 
 export const topicsStorageKey = 'wondr-topics'
 export const topicOrderStorageKey = 'wondr-topic-order'
+export const categoriesStorageKey = 'wondr-categories'
 export const studyItemsStorageKey = 'wondr-study-items'
 export const studyHistoryStorageKey = 'wondr-study-history'
 export const highlightsStorageKey = 'wondr-highlights'
