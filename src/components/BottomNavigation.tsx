@@ -14,7 +14,7 @@ export function BottomNavigation({ activeScreen, onTopics, onLearningPath, onStu
     <button className={activeScreen === 'list' ? 'active' : ''} type="button" onClick={onTopics}><span>01</span>Konular</button>
     <button className={activeScreen === 'learning-path' ? 'active' : ''} type="button" onClick={onLearningPath}><span>02</span>Learning Path</button>
     <button className={activeScreen === 'study-list' ? 'active' : ''} type="button" onClick={onStudyItems}><span>03</span>Öğrenecekler</button>
-    <button className={activeScreen === 'notes' ? 'active' : ''} type="button" onClick={onNotes}><span>04</span>Notlar</button>
+    <button className={activeScreen === 'notes' ? 'active' : ''} type="button" onClick={onNotes}><span>04</span>Shorts</button>
     <button className={activeScreen === 'knowledge-map' ? 'active' : ''} type="button" onClick={onKnowledgeMap}><span>05</span>Knowledge Map</button>
   </nav>
 }
