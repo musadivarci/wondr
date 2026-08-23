@@ -15,11 +15,17 @@ function mapCategory(row: CategoryRow): Category {
 
 export async function loadCategories(userId: string) {
   const client = clientOrThrow()
-  return withCloudRetry(client, async () => {
-    const result = await client.from('categories').select('*').eq('user_id', userId).order('position')
-    if (result.error) throw result.error
-    return (result.data as CategoryRow[]).map(mapCategory)
-  })
+  try {
+    return await withCloudRetry(client, async () => {
+      const result = await client.from('categories').select('*').eq('user_id', userId).order('position')
+      if (result.error) throw result.error
+      return (result.data as CategoryRow[]).map(mapCategory)
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('categories') || message.includes('PGRST')) return []
+    throw error
+  }
 }
 
 export async function saveCategory(userId: string, category: Category) {
