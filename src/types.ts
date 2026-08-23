@@ -55,3 +55,11 @@ export type Note = {
   updatedAt: string
   studyHistoryId?: string
 }
+
+export type QuickNote = {
+  id: string
+  category: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
