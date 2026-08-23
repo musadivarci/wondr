@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Highlight, Note, StudyHistory, StudyItem, Topic } from '../types'
+import { createQuickNoteFromText } from '../services/quickNotes'
 
 type TopicReaderProps = {
   topic: Topic
@@ -73,6 +74,7 @@ export function TopicReader({ topic, topics, onBack, onEdit, onAddStudyItem, onA
   const [notesOpen, setNotesOpen] = useState(false)
   const [studyItemsOpen, setStudyItemsOpen] = useState(false)
   const [notePanelOpen, setNotePanelOpen] = useState(false)
+  const [shortMessage, setShortMessage] = useState('')
 
   useEffect(() => {
     const storageKey = `wondr-reader-position:${topic.id}`
@@ -124,6 +126,20 @@ export function TopicReader({ topic, topics, onBack, onEdit, onAddStudyItem, onA
     window.getSelection()?.removeAllRanges()
   }
 
+  async function addSelectionToShorts() {
+    if (!selection) return
+    const selectedText = selection.text
+    setSelection(null)
+    window.getSelection()?.removeAllRanges()
+    try {
+      await createQuickNoteFromText(selectedText, 'Okumadan')
+      setShortMessage("Shorts'a eklendi.")
+    } catch {
+      setShortMessage("Short oluşturulamadı.")
+    }
+    window.setTimeout(() => setShortMessage(''), 1800)
+  }
+
   function markSelection() {
     if (!selection) return
     onAddHighlight({ topicId: topic.id, selectedText: selection.text, startOffset: selection.startOffset, endOffset: selection.endOffset, contextBefore: topic.notes.slice(Math.max(0, selection.startOffset - 36), selection.startOffset), contextAfter: topic.notes.slice(selection.endOffset, selection.endOffset + 36) })
@@ -153,7 +169,8 @@ export function TopicReader({ topic, topics, onBack, onEdit, onAddStudyItem, onA
     <div className="reader-danger-actions"><button className="delete-topic-button" type="button" onClick={() => { if (window.confirm('Bu konuyu silmek istediğine emin misin?\nKonu ve ilişkili çalışma verileri silinecek.')) onDelete(topic.id) }}>Konuyu Sil</button></div>
     <button className="reader-note-fab" type="button" onClick={() => { setEditingNoteId(null); setNoteDraft(''); setNotePanelOpen(true) }}>+ Not Ekle</button>
     {notePanelOpen && <div className="reader-note-panel-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNotePanelOpen(false) }}><section className="reader-note-panel" role="dialog" aria-modal="true" aria-labelledby="reader-note-title"><div className="note-panel-heading"><p className="eyebrow">ÇALIŞMA NOTU</p><button type="button" onClick={() => setNotePanelOpen(false)} aria-label="Not panelini kapat">×</button></div><h2 id="reader-note-title">Aklında ne kaldı?</h2><form onSubmit={(event) => { event.preventDefault(); if (noteDraft?.trim()) onCreateNote(noteDraft.trim(), topic.id); setNotePanelOpen(false); setNoteDraft(null) }}><textarea autoFocus required value={noteDraft ?? ''} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Bu okuma sırasında aklına gelenleri yaz..." rows={7}/><div><button className="edit-button" type="button" onClick={() => setNotePanelOpen(false)}>İptal</button><button className="study-button" type="submit">Kaydet</button></div></form></section></div>}
-    {selection && <div className="selection-toolbar" style={{ top: selection.top, left: selection.left }} onMouseDown={(event) => event.preventDefault()}><button type="button" onClick={markSelection}>İşaretle</button><button type="button" onClick={addSelection}>Çalış</button></div>}
+    {selection && <div className="selection-toolbar" style={{ top: selection.top, left: selection.left }} onMouseDown={(event) => event.preventDefault()}><button type="button" onClick={markSelection}>İşaretle</button><button type="button" onClick={addSelection}>Çalış</button><button type="button" onClick={addSelectionToShorts}>Short'a ekle</button></div>}
     {activeHighlight && <button className="selection-action remove-highlight-action" type="button" style={{ top: activeHighlight.top, left: activeHighlight.left }} onMouseDown={(event) => event.preventDefault()} onClick={() => { onRemoveHighlight(activeHighlight.id); setActiveHighlight(null) }}>İşareti kaldır</button>}
+    {shortMessage && <div className="toast" role="status">{shortMessage}</div>}
   </main>
 }
