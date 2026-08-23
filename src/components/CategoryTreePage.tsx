@@ -64,6 +64,17 @@ export function CategoryTreePage({ categories, topics, onBack, onCreate, onRenam
     })
   }
 
+  function openTopic(topicId: string) {
+    onBack()
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const card = document.getElementById(topicId)
+        const studyButton = card?.querySelector<HTMLButtonElement>('.study-button')
+        studyButton?.click()
+      })
+    })
+  }
+
   return <main className="category-page" aria-labelledby="category-page-title">
     <button className="back-link" type="button" onClick={onBack}>← Geri dön</button>
     <header className="category-heading">
@@ -104,7 +115,7 @@ export function CategoryTreePage({ categories, topics, onBack, onCreate, onRenam
           </article>
 
           {isExpanded && <section className="category-topic-panel" aria-label={`${category.name} konuları`}>
-            {categoryTopics.length === 0 ? <p>Bu kategoriye henüz konu bağlanmamış.</p> : <ol>{categoryTopics.map((topic, index) => <li key={topic.id}><span>{String(index + 1).padStart(2, '0')}</span><strong>{topic.title}</strong></li>)}</ol>}
+            {categoryTopics.length === 0 ? <p>Bu kategoriye henüz konu bağlanmamış.</p> : <ol>{categoryTopics.map((topic, index) => <li key={topic.id}><span>{String(index + 1).padStart(2, '0')}</span><button className="category-topic-link" type="button" onClick={() => openTopic(topic.id)}>{topic.title}<span aria-hidden="true">→</span></button></li>)}</ol>}
           </section>}
         </div>
       })}
