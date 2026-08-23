@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Category, Topic } from '../types'
+import './CategoryTreePage.css'
 
 type CategoryTreePageProps = {
   categories: Category[]
@@ -17,13 +18,10 @@ type TreeRow = { category: Category; depth: number }
 function flatten(categories: Category[]): TreeRow[] {
   const rows: TreeRow[] = []
   function visit(parentId: string | null, depth: number) {
-    categories
-      .filter((category) => category.parentId === parentId)
-      .sort((a, b) => a.position - b.position)
-      .forEach((category) => {
-        rows.push({ category, depth })
-        visit(category.id, depth + 1)
-      })
+    categories.filter((category) => category.parentId === parentId).sort((a, b) => a.position - b.position).forEach((category) => {
+      rows.push({ category, depth })
+      visit(category.id, depth + 1)
+    })
   }
   visit(null, 0)
   return rows
@@ -57,7 +55,7 @@ export function CategoryTreePage({ categories, topics, onBack, onCreate, onRenam
   }
 
   return <main className="category-page" aria-labelledby="category-page-title">
-    <button className="back-link" type="button" onClick={onBack}>← Konulara dön</button>
+    <button className="back-link" type="button" onClick={onBack}>← Geri dön</button>
     <header className="category-heading">
       <p className="eyebrow">BİLGİ MİMARİSİ</p>
       <h1 id="category-page-title">Kategori ağacı<span>.</span></h1>
