@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Highlight, Note, StudyHistory, StudyItem, Topic } from '../types'
 import { createQuickNoteFromText } from '../services/quickNotes'
+import './ReaderPremium.css'
 
 type TopicReaderProps = {
   topic: Topic
@@ -112,25 +113,29 @@ export function TopicReader({ topic, topics, onBack, onEdit, onAddStudyItem, onA
       const rect = range.getBoundingClientRect()
       const startOffset = textOffset(notesRoot, range.startContainer, range.startOffset)
       const endOffset = textOffset(notesRoot, range.endContainer, range.endOffset)
+      const toolbarHalfWidth = window.innerWidth <= 720 ? Math.min(150, (window.innerWidth - 24) / 2) : 132
       setActiveHighlight(null)
-      setSelection({ text, top: Math.min(window.innerHeight - 52, rect.bottom + 8), left: Math.min(window.innerWidth - 90, Math.max(90, rect.left + rect.width / 2)), startOffset, endOffset })
+      setSelection({ text, top: Math.min(window.innerHeight - 56, rect.bottom + 8), left: Math.min(window.innerWidth - toolbarHalfWidth, Math.max(toolbarHalfWidth, rect.left + rect.width / 2)), startOffset, endOffset })
     }
     document.addEventListener('selectionchange', handleSelection)
     return () => document.removeEventListener('selectionchange', handleSelection)
   }, [])
 
+  function clearSelection() {
+    setSelection(null)
+    window.getSelection()?.removeAllRanges()
+  }
+
   function addSelection() {
     if (!selection) return
     onAddStudyItem(selection.text, topic.notes)
-    setSelection(null)
-    window.getSelection()?.removeAllRanges()
+    clearSelection()
   }
 
   async function addSelectionToShorts() {
     if (!selection) return
     const selectedText = selection.text
-    setSelection(null)
-    window.getSelection()?.removeAllRanges()
+    clearSelection()
     try {
       await createQuickNoteFromText(selectedText, 'Okumadan')
       setShortMessage("Shorts'a eklendi.")
@@ -143,8 +148,15 @@ export function TopicReader({ topic, topics, onBack, onEdit, onAddStudyItem, onA
   function markSelection() {
     if (!selection) return
     onAddHighlight({ topicId: topic.id, selectedText: selection.text, startOffset: selection.startOffset, endOffset: selection.endOffset, contextBefore: topic.notes.slice(Math.max(0, selection.startOffset - 36), selection.startOffset), contextAfter: topic.notes.slice(selection.endOffset, selection.endOffset + 36) })
-    setSelection(null)
-    window.getSelection()?.removeAllRanges()
+    clearSelection()
+  }
+
+  function jumpToHighlight(highlightId: string) {
+    const mark = document.querySelector<HTMLElement>(`[data-highlight-id="${highlightId}"]`)
+    mark?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (mark) {
+      mark.animate([{ outline:'0 solid rgba(255,92,53,0)' }, { outline:'4px solid rgba(255,92,53,.24)' }, { outline:'0 solid rgba(255,92,53,0)' }], { duration:900 })
+    }
   }
 
   const ranges = highlightRanges(topic.notes, highlights)
@@ -154,23 +166,61 @@ export function TopicReader({ topic, topics, onBack, onEdit, onAddStudyItem, onA
     return <p className="reader-paragraph" key={`${paragraphStart}-${paragraph}`}>{renderMarkedText(paragraph, ranges, paragraphStart, (event, highlight) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setSelection(null); setActiveHighlight({ id: highlight.id, top: Math.min(window.innerHeight - 52, rect.bottom + 8), left: Math.min(window.innerWidth - 70, Math.max(70, rect.left + rect.width / 2)) }) })}</p>
   })
   const relationships = [
-    { label: '↑ üst', names: topicNames(topic.parentTopicIds, topics) },
-    { label: '↓ alt', names: topicNames(topic.childTopicIds, topics) },
-    { label: '↔ ilişkili', names: topicNames(topic.relatedTopicIds, topics) },
+    { label: 'Üst konu', names: topicNames(topic.parentTopicIds, topics) },
+    { label: 'Alt konu', names: topicNames(topic.childTopicIds, topics) },
+    { label: 'İlişkili', names: topicNames(topic.relatedTopicIds, topics) },
   ].filter((relationship) => relationship.names.length > 0)
 
   return <main className="topic-reader" aria-labelledby="reader-title">
-    <div className="reader-topline"><button className="back-link" type="button" onClick={onBack}>← Konulara dön</button><div className="reader-actions"><button className="archive-button" type="button" onClick={() => onArchive(topic.id)}>{topic.archivedAt ? 'Arşivden çıkar' : 'Arşivle'}</button><button className="edit-button" type="button" onClick={() => onEdit(topic.id)}>Düzenle</button></div></div>
-    <div className="reader-sticky-bar"><strong>{topic.title}</strong><span>{readerProgress}% okundu</span></div><div className="reader-progress" aria-hidden="true"><span style={{ width: `${readerProgress}%` }}/></div><header className="reader-heading"><p className="eyebrow">KONU</p><h1 id="reader-title">{topic.title}<span>.</span></h1><p className="reader-meta">{topic.noteCount} not <i/> son çalışma {topic.lastStudied} <i/> {studyHistory.length} çalışma</p></header>
-    {relationships.length > 0 && <div className="reader-relations">{relationships.map((relationship) => <div className="reader-relation" key={relationship.label}><span>{relationship.label}</span><p>{relationship.names.map((name) => { const related = topics.find((candidate) => candidate.title === name); return related ? <button type="button" key={related.id} onClick={() => onOpenTopic(related.id)}>{name}</button> : null })}</p></div>)}</div>}
-    <article className="reader-notes"><p className="eyebrow">NOTLAR</p><div className="reader-notes-content">{noteContent}</div></article>
-    <details className="reader-workspace" open={notesOpen} onToggle={(event) => setNotesOpen(event.currentTarget.open)}><summary className="workspace-heading"><span className="eyebrow">NOTLARIM</span></summary>{notes.length === 0 && <p className="workspace-empty">Bu konu için henüz bir çalışma notun yok.</p>}{notes.map((note) => <article className="personal-note" key={note.id}><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleDateString('tr-TR')}</time>{editingNoteId === note.id ? <textarea value={noteDraft ?? note.content} onChange={(event) => setNoteDraft(event.target.value)} /> : <p>{note.content}</p>}<div><button type="button" onClick={() => { if (editingNoteId === note.id) { if (noteDraft?.trim()) onUpdateNote(note.id, noteDraft.trim()); setEditingNoteId(null); setNoteDraft(null) } else { setEditingNoteId(note.id); setNoteDraft(note.content) } }}>{editingNoteId === note.id ? 'Kaydet' : 'Düzenle'}</button><button type="button" onClick={() => { if (window.confirm('Bu notu silmek istediğine emin misin?')) onDeleteNote(note.id) }}>Sil</button></div></article>)}</details>
-    <details className="reader-study-items" open={studyItemsOpen} onToggle={(event) => setStudyItemsOpen(event.currentTarget.open)}><summary className="workspace-heading"><span className="eyebrow">ÇALIŞMA LİSTEM</span></summary>{studyItems.length === 0 ? <p className="workspace-empty">Bu konudan henüz bir çalışma ifadesi yok.</p> : studyItems.map((item) => <p key={item.id}>“{item.text}”</p>)}</details>
-    <div className="reader-danger-actions"><button className="delete-topic-button" type="button" onClick={() => { if (window.confirm('Bu konuyu silmek istediğine emin misin?\nKonu ve ilişkili çalışma verileri silinecek.')) onDelete(topic.id) }}>Konuyu Sil</button></div>
+    <div className="reader-progress" aria-hidden="true"><span style={{ width: `${readerProgress}%` }}/></div>
+    <header className="reader-premium-chrome">
+      <button className="back-link" type="button" onClick={onBack}>← Konulara dön</button>
+      <div className="reader-premium-title"><strong>{topic.title}</strong><span>Odaklı okuma · {readerProgress}%</span></div>
+      <div className="reader-actions"><button className="archive-button" type="button" onClick={() => onArchive(topic.id)}>{topic.archivedAt ? 'Arşivden çıkar' : 'Arşivle'}</button><button className="edit-button" type="button" onClick={() => onEdit(topic.id)}>Düzenle</button></div>
+    </header>
+
+    <div className="reader-shell">
+      <section className="reader-hero">
+        <p className="reader-kicker">wondR · Reading</p>
+        <h1 id="reader-title">{topic.title}<span>.</span></h1>
+        <p className="reader-meta"><span>{topic.noteCount} içerik notu</span><i/><span>son çalışma {topic.lastStudied}</span><i/><span>{studyHistory.length} çalışma</span></p>
+      </section>
+
+      <div className="reader-layout">
+        <section className="reader-main">
+          <article className="reader-paper">
+            <p className="reader-section-label">Okuma metni</p>
+            <div className="reader-notes-content">{noteContent}</div>
+          </article>
+
+          <div className="reader-workspace-stack">
+            <details className="reader-workspace" open={notesOpen} onToggle={(event) => setNotesOpen(event.currentTarget.open)}>
+              <summary className="workspace-heading"><span className="eyebrow">KONU NOTLARIM · {notes.length}</span></summary>
+              {notes.length === 0 && <p className="workspace-empty">Bu konu için henüz bir çalışma notun yok.</p>}
+              {notes.map((note) => <article className="personal-note" key={note.id}><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleDateString('tr-TR')}</time>{editingNoteId === note.id ? <textarea value={noteDraft ?? note.content} onChange={(event) => setNoteDraft(event.target.value)} /> : <p>{note.content}</p>}<div><button type="button" onClick={() => { if (editingNoteId === note.id) { if (noteDraft?.trim()) onUpdateNote(note.id, noteDraft.trim()); setEditingNoteId(null); setNoteDraft(null) } else { setEditingNoteId(note.id); setNoteDraft(note.content) } }}>{editingNoteId === note.id ? 'Kaydet' : 'Düzenle'}</button><button type="button" onClick={() => { if (window.confirm('Bu notu silmek istediğine emin misin?')) onDeleteNote(note.id) }}>Sil</button></div></article>)}
+            </details>
+            <details className="reader-study-items" open={studyItemsOpen} onToggle={(event) => setStudyItemsOpen(event.currentTarget.open)}>
+              <summary className="workspace-heading"><span className="eyebrow">ÇALIŞMA LİSTEM · {studyItems.length}</span></summary>
+              {studyItems.length === 0 ? <p className="workspace-empty">Bu konudan henüz bir çalışma ifadesi yok.</p> : studyItems.map((item) => <p key={item.id}>“{item.text}”</p>)}
+            </details>
+          </div>
+          <div className="reader-danger-actions"><button className="delete-topic-button" type="button" onClick={() => { if (window.confirm('Bu konuyu silmek istediğine emin misin?\nKonu ve ilişkili çalışma verileri silinecek.')) onDelete(topic.id) }}>Konuyu Sil</button></div>
+        </section>
+
+        <aside className="reader-sidecar" aria-label="Okuma araçları">
+          <section className="reader-side-card">
+            <div className="reader-progress-ring"><div className="reader-progress-number" style={{ '--reader-progress': readerProgress } as React.CSSProperties}><span>{readerProgress}%</span></div><div className="reader-progress-copy"><strong>Okuma ilerlemesi</strong><small>Konumun otomatik kaydedilir; geri geldiğinde kaldığın yerden devam edersin.</small></div></div>
+          </section>
+          {relationships.length > 0 && <section className="reader-side-card"><div className="reader-side-heading"><h2>Bağlantılar</h2><span>{relationships.reduce((total, relation) => total + relation.names.length, 0)}</span></div><div className="reader-relation-list">{relationships.map((relationship) => <div className="reader-relation-row" key={relationship.label}><span>{relationship.label}</span><div>{relationship.names.map((name) => { const related = topics.find((candidate) => candidate.title === name); return related ? <button type="button" key={related.id} onClick={() => onOpenTopic(related.id)}>{name}</button> : null })}</div></div>)}</div></section>}
+          <section className="reader-side-card"><div className="reader-side-heading"><h2>İşaretlediklerim</h2><span>{highlights.length}</span></div>{highlights.length === 0 ? <p className="reader-highlight-empty">Metinde önemli gördüğün bir bölümü seçip “İşaretle” diyebilirsin.</p> : <div className="reader-highlights-list">{highlights.map((highlight) => <button className="reader-highlight-item" type="button" key={highlight.id} onClick={() => jumpToHighlight(highlight.id)}>{highlight.selectedText}</button>)}</div>}</section>
+        </aside>
+      </div>
+    </div>
+
     <button className="reader-note-fab" type="button" onClick={() => { setEditingNoteId(null); setNoteDraft(''); setNotePanelOpen(true) }}>+ Not Ekle</button>
     {notePanelOpen && <div className="reader-note-panel-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setNotePanelOpen(false) }}><section className="reader-note-panel" role="dialog" aria-modal="true" aria-labelledby="reader-note-title"><div className="note-panel-heading"><p className="eyebrow">ÇALIŞMA NOTU</p><button type="button" onClick={() => setNotePanelOpen(false)} aria-label="Not panelini kapat">×</button></div><h2 id="reader-note-title">Aklında ne kaldı?</h2><form onSubmit={(event) => { event.preventDefault(); if (noteDraft?.trim()) onCreateNote(noteDraft.trim(), topic.id); setNotePanelOpen(false); setNoteDraft(null) }}><textarea autoFocus required value={noteDraft ?? ''} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Bu okuma sırasında aklına gelenleri yaz..." rows={7}/><div><button className="edit-button" type="button" onClick={() => setNotePanelOpen(false)}>İptal</button><button className="study-button" type="submit">Kaydet</button></div></form></section></div>}
-    {selection && <div className="selection-toolbar" style={{ top: selection.top, left: selection.left }} onMouseDown={(event) => event.preventDefault()}><button type="button" onClick={markSelection}>İşaretle</button><button type="button" onClick={addSelection}>Çalış</button><button type="button" onClick={addSelectionToShorts}>Short'a ekle</button></div>}
-    {activeHighlight && <button className="selection-action remove-highlight-action" type="button" style={{ top: activeHighlight.top, left: activeHighlight.left }} onMouseDown={(event) => event.preventDefault()} onClick={() => { onRemoveHighlight(activeHighlight.id); setActiveHighlight(null) }}>İşareti kaldır</button>}
+    {selection && <div className="selection-toolbar" style={{ top:selection.top, left:selection.left }} onMouseDown={(event) => event.preventDefault()}><button type="button" onClick={markSelection}>İşaretle</button><button type="button" onClick={addSelection}>Çalış</button><button type="button" onClick={addSelectionToShorts}>Short'a ekle</button></div>}
+    {activeHighlight && <button className="selection-action remove-highlight-action" type="button" style={{ top:activeHighlight.top, left:activeHighlight.left }} onMouseDown={(event) => event.preventDefault()} onClick={() => { onRemoveHighlight(activeHighlight.id); setActiveHighlight(null) }}>İşareti kaldır</button>}
     {shortMessage && <div className="toast" role="status">{shortMessage}</div>}
   </main>
 }
